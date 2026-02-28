@@ -1,0 +1,152 @@
+name: Build Graphs Daily
+
+on:
+  schedule:
+    # Every day at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  BASE_PATH: /${{ github.event.repository.name }}/
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      total: ${{ steps.build-matrix.outputs.total }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Build matrix from repos.yml
+        id: build-matrix
+        run: |
+          python scripts/ci/build_matrix.py \
+          --config repos.yml \
+          --matrix-out matrix.json \
+          --count-out count.txt
+
+          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "total=$(cat count.txt)" >> "$GITHUB_OUTPUT"
+
+  generate-graph:
+    needs: prepare-matrix
+    if: ${{ needs.prepare-matrix.outputs.total != '0' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare local repos workspace
+        run: |
+          rm -rf repos
+          mkdir -p repos
+
+      - name: Clone target repository
+        run: |
+          git clone --no-tags "https://github.com/${{ matrix.owner }}/${{ matrix.repo }}.git" "repos/${{ matrix.slug }}"
+
+      - name: Build graph for this repository
+        run: ./scripts/export.sh
+
+      - name: Prepare artifact bundle
+        run: bash scripts/ci/prepare_artifact.sh "${{ matrix.slug }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-graph-${{ matrix.slug }}
+          path: out
+          if-no-files-found: error
+
+  aggregate-and-deploy:
+    needs:
+      - prepare-matrix
+      - generate-graph
+    if: ${{ always() && needs.prepare-matrix.outputs.total != '0' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download graph artifacts from successful jobs
+        uses: actions/download-artifact@v4
+        with:
+          path: collected
+          pattern: repo-graph-*
+
+      - name: Assemble final dist from successful artifacts only
+        run: |
+          python scripts/ci/aggregate_artifacts.py \
+          --collected-dir collected \
+          --pattern 'repo-graph-*' \
+          --output-dir final-dist
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: final-dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

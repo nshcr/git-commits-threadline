@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Git Commits Threadline</title>
+  <link href="/src/style.css" rel="stylesheet"/>
+</head>
+<body>
+<div id="app">
+  <canvas id="graph-canvas"></canvas>
+  <div id="controls">
+    <div id="mode-toggle">
+      <button class="mode-btn mode-btn-active" id="mode-animate-btn" title="Animation mode — play commits step by step">
+        <svg fill="currentColor" height="11" viewBox="0 0 16 16" width="11">
+          <polygon points="3,2 13,8 3,14"/>
+        </svg>
+        Animate
+      </button>
+      <button class="mode-btn" id="mode-snapshot-btn" title="Final state — show completed graph instantly">
+        <svg fill="currentColor" height="11" viewBox="0 0 16 16" width="11">
+          <circle cx="4" cy="4" r="1.8"/>
+          <circle cx="12" cy="4" r="1.8"/>
+          <circle cx="4" cy="12" r="1.8"/>
+          <circle cx="12" cy="12" r="1.8"/>
+          <circle cx="8" cy="8" r="1.8"/>
+        </svg>
+        Final
+      </button>
+    </div>
+    <button class="ctrl-btn" id="play-btn" title="Play/Pause (Space)">&#9654;</button>
+    <button class="ctrl-btn" id="stop-btn" title="Stop">&#9632;</button>
+    <button class="ctrl-btn" id="step-back-btn" title="Step Back">&#9664;&#9664;</button>
+    <button class="ctrl-btn" id="step-fwd-btn" title="Step Forward">&#9654;&#9654;</button>
+    <div id="progress-wrap">
+      <div id="progress-bar"></div>
+    </div>
+    <span id="commit-counter">0 / 0</span>
+    <span id="date-display"></span>
+    <label id="speed-label">
+      Speed:
+      <input id="speed-slider" max="20" min="1" step="1" type="range" value="2"/>
+      <span id="speed-value">1.0x</span>
+    </label>
+    <span id="snapshot-status">
+          <span id="snapshot-dot"></span>
+          <span id="snapshot-label">Settling&#8230;</span>
+        </span>
+  </div>
+  <div class="hidden" id="tooltip"></div>
+  <a href="../" id="back-btn" title="Back to index">&#8592;</a>
+  <div id="legend"></div>
+  <div id="play-hint">Press Space or click &#9654; to start</div>
+  <div id="loading-overlay">
+    <div id="loading-spinner"></div>
+    <div id="loading-text">Loading graph data&#8230;</div>
+    <div id="loading-progress-wrap">
+      <div id="loading-progress-bar"></div>
+    </div>
+    <div id="loading-progress-text"></div>
+  </div>
+  <div class="hidden" id="chunk-indicator">
+    <span id="chunk-dot"></span>
+    Loading data&#8230;
+  </div>
+</div>
+<script src="/src/main.ts" type="module"></script>
+</body>
+</html>

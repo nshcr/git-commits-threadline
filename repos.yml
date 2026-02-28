@@ -1,0 +1,96 @@
+repositories:
+  actix:
+    - actix-web
+  alacritty:
+    - alacritty
+  angular:
+    - angular
+  astral-sh:
+    - ruff
+    - uv
+  biomejs:
+    - biome
+  cli:
+    - cli
+  denoland:
+    - deno
+  django:
+    - django
+  electron:
+    - electron
+  evanw:
+    - esbuild
+  excalidraw:
+    - excalidraw
+  facebook:
+    - react
+  git:
+    - git
+  ggml-org:
+    - llama.cpp
+  ghostty-org:
+    - ghostty
+  gitbutlerapp:
+    - gitbutler
+  GitoxideLabs:
+    - gitoxide
+  golang:
+    - go
+  helix-editor:
+    - helix
+  jj-vcs:
+    - jj
+  lapce:
+    - lapce
+  libgit2:
+    - libgit2
+  microsoft:
+    - TypeScript
+    - vscode
+  neovim:
+    - neovim
+  nodejs:
+    - node
+  ollama:
+    - ollama
+  oven-sh:
+    - bun
+  oxc-project:
+    - oxc
+  pnpm:
+    - pnpm
+  python:
+    - cpython
+  rust-lang:
+    - cargo
+    - rust
+    - rust-analyzer
+  sveltejs:
+    - svelte
+  tailwindlabs:
+    - tailwindcss
+  tauri-apps:
+    - tauri
+  tldraw:
+    - tldraw
+  tokio-rs:
+    - axum
+    - tokio
+  torvalds:
+    - linux
+  tree-sitter:
+    - tree-sitter
+  typst:
+    - typst
+  vercel:
+    - next.js
+  vitejs:
+    - vite
+  vuejs:
+    - core
+  wezterm:
+    - wezterm
+  zed-industries:
+    - zed
+  ziglang:
+    - zig
