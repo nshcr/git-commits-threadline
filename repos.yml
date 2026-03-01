@@ -46,7 +46,6 @@ repositories:
     - libgit2
   microsoft:
     - TypeScript
-    - vscode
   neovim:
     - neovim
   nodejs:
@@ -59,11 +58,8 @@ repositories:
     - oxc
   pnpm:
     - pnpm
-  python:
-    - cpython
   rust-lang:
     - cargo
-    - rust
     - rust-analyzer
   sveltejs:
     - svelte
@@ -76,8 +72,6 @@ repositories:
   tokio-rs:
     - axum
     - tokio
-  torvalds:
-    - linux
   tree-sitter:
     - tree-sitter
   typst:
