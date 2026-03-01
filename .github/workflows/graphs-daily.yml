@@ -48,14 +48,10 @@ jobs:
           echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
           echo "total=$(cat count.txt)" >> "$GITHUB_OUTPUT"
 
-  generate-graph:
+  build-tools:
     needs: prepare-matrix
     if: ${{ needs.prepare-matrix.outputs.total != '0' }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,18 +68,76 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install frontend dependencies
         run: |
           cd frontend
           pnpm install
 
+      - name: Build frontend
+        run: |
+          cd frontend
+          pnpm run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Build backend binary
+        run: |
+          cd backend
+          cargo build --release
+
+      - name: Upload backend binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release/git-commits-threadline
+          if-no-files-found: error
+          retention-days: 1
+
+  generate-graph:
+    needs: [ prepare-matrix, build-tools ]
+    if: ${{ needs.prepare-matrix.outputs.total != '0' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Download backend binary
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: Make backend binary executable
+        run: chmod +x backend/target/release/git-commits-threadline
 
       - name: Prepare local repos workspace
         run: |
@@ -95,7 +149,7 @@ jobs:
           git clone --no-tags "https://github.com/${{ matrix.owner }}/${{ matrix.repo }}.git" "repos/${{ matrix.slug }}"
 
       - name: Build graph for this repository
-        run: ./scripts/export.sh
+        run: cd backend && ./target/release/git-commits-threadline
 
       - name: Prepare artifact bundle
         run: bash scripts/ci/prepare_artifact.sh "${{ matrix.slug }}"
