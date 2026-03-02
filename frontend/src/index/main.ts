@@ -21,8 +21,8 @@ function renderPage(app: HTMLElement, repos: RepoInfo[]) {
       <section class="hero">
         <div class="hero-text">
           <h1>Git Commits Threadline</h1>
-          <p>Visualize the complete commit history of Git repositories as animated force-directed graphs.</p>
-          <p>Watch commit threads weave together across branches and contributors.</p>
+          <p>Explore real repository histories as animated commit graphs.</p>
+          <p>Compare commit growth, branch activity, and contributor distribution over time.</p>
         </div>
         <div class="hero-links">
           <a class="btn btn-primary" href="https://github.com/nshcr/git-commits-threadline" target="_blank" rel="noopener noreferrer">
@@ -36,7 +36,7 @@ function renderPage(app: HTMLElement, repos: RepoInfo[]) {
         ${ FORK_SVG }
         <div>
           <div class="contribute-title">Want your repository listed here?</div>
-          <p class="contribute-body">Submit a PR to add your repository or any other repository you'd like to see!<br/>The automated build will generate a graph for it automatically. <a href="https://github.com/nshcr/git-commits-threadline?tab=readme-ov-file#contributing" target="_blank" rel="noopener noreferrer">Learn more on GitHub &rarr;</a></p>
+          <p class="contribute-body">Submit a PR to add it to <code>repos.yml</code>.<br/>The CI pipeline will build and publish the visualization automatically. <a href="https://github.com/nshcr/git-commits-threadline?tab=readme-ov-file#contributing" target="_blank" rel="noopener noreferrer">Contributing guide &rarr;</a></p>
         </div>
       </div>
 
