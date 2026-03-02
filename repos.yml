@@ -3,13 +3,24 @@ repositories:
     - actix-web
   alacritty:
     - alacritty
+  anomalyco:
+    - opencode
+  antfu-collective:
+    - vitesse
+  ant-design:
+    - ant-design
   angular:
     - angular
+    - angular-cli
   astral-sh:
     - ruff
     - uv
   biomejs:
     - biome
+  BurntSushi:
+    - ripgrep
+  element-plus:
+    - element-plus
   cli:
     - cli
   denoland:
@@ -18,12 +29,16 @@ repositories:
     - django
   electron:
     - electron
+    - forge
   evanw:
     - esbuild
   excalidraw:
     - excalidraw
   facebook:
     - react
+    - react-native
+  fish-shell:
+    - fish-shell
   git:
     - git
   ggml-org:
@@ -34,54 +49,146 @@ repositories:
     - gitbutler
   GitoxideLabs:
     - gitoxide
+  go-gitea:
+    - gitea
   golang:
     - go
+  google:
+    - zx
+  google-gemini:
+    - gemini-cli
   helix-editor:
     - helix
+  immich-app:
+    - immich
   jj-vcs:
     - jj
+  jesseduffield:
+    - lazygit
+  formkit:
+    - formkit
+  junegunn:
+    - fzf
   lapce:
     - lapce
   libgit2:
     - libgit2
+  mermaid-js:
+    - mermaid
   microsoft:
     - TypeScript
+    - markitdown
+    - vscode
+    - playwright
+  nestjs:
+    - nest
   neovim:
     - neovim
+    - nvim-lspconfig
   nodejs:
     - node
+    - undici
+  nuxt:
+    - nuxt
+    - ui
+    - content
   ollama:
     - ollama
   oven-sh:
     - bun
+    - setup-bun
   oxc-project:
     - oxc
+  phiresky:
+    - ripgrep-all
+  primefaces:
+    - primevue
   pnpm:
     - pnpm
+    - action-setup
+  prettier:
+    - prettier
+    - prettier-vscode
   rust-lang:
     - cargo
     - rust-analyzer
+    - rustlings
+  sharkdp:
+    - bat
+    - fd
+    - hyperfine
+  starship:
+    - starship
+  storybookjs:
+    - storybook
+  strapi:
+    - strapi
   sveltejs:
     - svelte
+    - kit
+    - vite-plugin-svelte
+    - svelte.dev
+  slidevjs:
+    - slidev
   tailwindlabs:
     - tailwindcss
+    - headlessui
+    - heroicons
   tauri-apps:
     - tauri
+    - wry
+    - plugins-workspace
+    - create-tauri-app
   tldraw:
     - tldraw
   tokio-rs:
     - axum
     - tokio
+    - tracing
+    - mio
+    - bytes
   tree-sitter:
     - tree-sitter
+    - tree-sitter-typescript
+    - tree-sitter-javascript
   typst:
     - typst
   vercel:
     - next.js
+    - swr
+    - ai
+    - turborepo
   vitejs:
     - vite
+  unocss:
+    - unocss
+  unovue:
+    - reka-ui
+  unplugin:
+    - unplugin-icons
+  vuetifyjs:
+    - vuetify
+  vueComponent:
+    - ant-design-vue
   vuejs:
     - core
+    - router
+    - vitepress
+    - pinia
+    - language-tools
+    - vue
+    - vuex
+    - docs
+    - eslint-plugin-vue
+    - test-utils
+  vueuse:
+    - vueuse
+  quasarframework:
+    - quasar
+  jestjs:
+    - jest
+  charmbracelet:
+    - bubbletea
   wezterm:
     - wezterm
   zed-industries:
