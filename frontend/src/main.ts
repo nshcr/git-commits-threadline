@@ -41,7 +41,8 @@ async function main() {
   loadingText.textContent = 'Loading metadata\u2026';
   loadingProgressWrap.classList.add('hidden');
   const meta: GraphMeta = await fetchMeta();
-  document.title = `${ meta.repo_name } - Git Commits Threadline`;
+  const repoDisplayName = getRepoDisplayName(meta);
+  document.title = `${ repoDisplayName } - Git Commits Threadline`;
   commitCounter.textContent = `0 / ${ meta.total_commits.toLocaleString() }`;
 
   const chunkLoader = new ChunkLoader(meta.chunks);
@@ -67,7 +68,7 @@ async function main() {
 
   const legend = new DynamicLegend(
     legendEl,
-    meta.repo_name,
+    repoDisplayName,
     meta.branches,
     (filter) => {
       renderer.highlightFilter = filter;
@@ -403,6 +404,14 @@ function formatMonthYear(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr.substring(0, 7);
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function getRepoDisplayName(meta: GraphMeta): string {
+  if (meta.github_url) {
+    const match = meta.github_url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/?#]+?)(?:\.git)?\/?$/i);
+    if (match) return `${ match[1] }/${ match[2] }`;
+  }
+  return meta.repo_name;
 }
 
 main().catch((err) => {
