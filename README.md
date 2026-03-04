@@ -19,6 +19,8 @@ This project helps you quickly inspect:
 
 ### [Git](https://github.com/git/git)
 
+https://nshcr.github.io/git-commits-threadline/git__git/
+
 ![git final mode - full history](./screenshots/git.png)
 
 For `git`, the graph is showcased in **Final** mode because it better reveals long-range evolution, commit density, and time-stage distribution across a very large history.
@@ -29,13 +31,19 @@ For the same repository, this view highlights only `origin/todo`, making a singl
 
 ### [Gitoxide](https://github.com/GitoxideLabs/gitoxide)
 
+https://nshcr.github.io/git-commits-threadline/GitoxideLabs__gitoxide/
+
 ![gitoxide demo](./screenshots/gitoxide.png)
 
 ### [GitButler](https://github.com/gitbutlerapp/gitbutler)
 
+https://nshcr.github.io/git-commits-threadline/gitbutlerapp__gitbutler/
+
 ![gitbutler demo](./screenshots/gitbutler.png)
 
 ### [tree-sitter](https://github.com/tree-sitter/tree-sitter)
+
+https://nshcr.github.io/git-commits-threadline/tree-sitter__tree-sitter/
 
 ![tree-sitter demo](./screenshots/tree-sitter.png)
 
