@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { normalizeCommitAuthors } from './authors';
 import { getAuthorColorByEmail } from './colors';
 import type { BranchInfo, CommitNode, SimLink, SimNode } from './types';
 
@@ -193,18 +194,28 @@ export class ForceGraph {
   }
 
   private createNode(commit: CommitNode, x: number, y: number): SimNode {
+    const authors = normalizeCommitAuthors(commit);
+    const primary = authors[0] ?? {
+      name: commit.author_name,
+      email: commit.author_email.toLowerCase(),
+    };
+    const colors = authors.map((a) => getAuthorColorByEmail(a.email));
     return {
       hash: commit.hash,
       short_hash: commit.short_hash,
-      author_name: commit.author_name,
-      author_email: commit.author_email,
+      authors,
+      author_emails: authors.map((a) => a.email),
+      author_name: primary.name,
+      author_email: primary.email,
       author_date: commit.author_date,
       committer_name: commit.committer_name,
+      committer_email: (commit.committer_email ?? '').trim().toLowerCase(),
       committer_date: commit.committer_date,
       message: commit.message,
       branches: commit.branches,
       radius: computeRadius(commit),
-      color: getAuthorColorByEmail(commit.author_email),
+      color: colors[0] ?? getAuthorColorByEmail(primary.email),
+      colors,
       original_branch: commit.original_branch,
       timestamp: commit.timestamp,
       is_merge: commit.is_merge,

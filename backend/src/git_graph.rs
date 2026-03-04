@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use gix::revision::walk::Sorting;
 use gix::traverse::commit::simple::CommitTimeOrder;
 
-use crate::models::{AuthorInfo, BranchInfo, CommitNode, GraphData};
+use crate::models::{AuthorInfo, AuthorRole, BranchInfo, CommitAuthor, CommitNode, GraphData};
 
 #[rustfmt::skip]
 const BRANCH_PALETTE: &[&str] = &[
@@ -38,11 +38,13 @@ struct RawCommit {
     hash: String,
     short_hash: String,
     parent_hashes: Vec<String>,
+    authors: Vec<CommitAuthor>,
     author_name: String,
     author_email: String,
     timestamp: i64,
     author_date: String,
     committer_name: String,
+    committer_email: String,
     committer_date: String,
     message: String,
 }
@@ -130,24 +132,65 @@ pub fn build_graph(repo_path: &Path) -> Result<GraphData> {
 
         let committer = commit.committer().context("Failed to read committer")?;
         let committer_name = committer.name.to_string();
+        let committer_email = committer.email.to_string();
         let committer_date = format_timestamp(committer.seconds());
 
-        let message = commit
-            .message()
-            .map(|m| m.title.to_string())
-            .unwrap_or_default()
-            .trim()
-            .to_string();
+        let (message, trailer_co_authors) = match commit.message() {
+            Ok(m) => {
+                let message = m.title.to_string().trim().to_string();
+                let mut parsed: Vec<CommitAuthor> = Vec::new();
+                if let Some(body) = m.body() {
+                    for trailer in body.trailers().co_authored_by() {
+                        let value = String::from_utf8_lossy(trailer.value.as_ref()).to_string();
+                        if let Some((name, email)) = parse_name_email(&value) {
+                            parsed.push(CommitAuthor {
+                                name,
+                                email,
+                                role: AuthorRole::CoAuthor,
+                            });
+                        }
+                    }
+                }
+                (message, parsed)
+            }
+            Err(_) => (String::new(), Vec::new()),
+        };
+
+        let mut authors: Vec<CommitAuthor> = Vec::new();
+        let mut seen_emails: HashSet<String> = HashSet::new();
+
+        let primary_email = normalize_email(&author_email);
+        if !primary_email.is_empty() {
+            push_unique_author(
+                &mut authors,
+                &mut seen_emails,
+                author_name.clone(),
+                primary_email.clone(),
+                AuthorRole::Author,
+            );
+        }
+
+        for co in trailer_co_authors {
+            push_unique_author(
+                &mut authors,
+                &mut seen_emails,
+                co.name,
+                normalize_email(&co.email),
+                AuthorRole::CoAuthor,
+            );
+        }
 
         raw_commits.push(RawCommit {
             hash,
             short_hash,
             parent_hashes,
+            authors,
             author_name,
-            author_email,
+            author_email: primary_email,
             timestamp,
             author_date,
             committer_name,
+            committer_email,
             committer_date,
             message,
         });
@@ -278,9 +321,15 @@ pub fn build_graph(repo_path: &Path) -> Result<GraphData> {
     // --- Build AuthorInfo (deduplicated by email) ---
     let mut email_to_names: HashMap<String, HashMap<String, usize>> = HashMap::new();
     for rc in &raw_commits {
-        let email = rc.author_email.to_lowercase();
-        let entry = email_to_names.entry(email).or_default();
-        *entry.entry(rc.author_name.clone()).or_insert(0) += 1;
+        let mut commit_seen: HashSet<String> = HashSet::new();
+        for author in &rc.authors {
+            let email = author.email.to_lowercase();
+            if email.is_empty() || !commit_seen.insert(email.clone()) {
+                continue;
+            }
+            let entry = email_to_names.entry(email).or_default();
+            *entry.entry(author.name.clone()).or_insert(0) += 1;
+        }
     }
     let mut authors: Vec<AuthorInfo> = email_to_names
         .into_iter()
@@ -316,11 +365,13 @@ pub fn build_graph(repo_path: &Path) -> Result<GraphData> {
                 hash: rc.hash.clone(),
                 short_hash: rc.short_hash.clone(),
                 parent_hashes: rc.parent_hashes.clone(),
+                authors: rc.authors.clone(),
                 author_name: rc.author_name.clone(),
                 author_email: rc.author_email.clone(),
                 timestamp: rc.timestamp,
                 author_date: rc.author_date.clone(),
                 committer_name: rc.committer_name.clone(),
+                committer_email: rc.committer_email.clone(),
                 committer_date: rc.committer_date.clone(),
                 message: rc.message.clone(),
                 branches,
@@ -462,4 +513,47 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
+}
+
+fn parse_name_email(input: &str) -> Option<(String, String)> {
+    let lt = input.rfind('<')?;
+    let gt = input[lt..].find('>')? + lt;
+    if gt <= lt + 1 {
+        return None;
+    }
+    let name = input[..lt].trim().to_string();
+    let email = input[lt + 1..gt].trim().to_string();
+    if email.is_empty() {
+        return None;
+    }
+    Some((name, email))
+}
+
+fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
+
+fn push_unique_author(
+    authors: &mut Vec<CommitAuthor>,
+    seen_emails: &mut HashSet<String>,
+    name: String,
+    email: String,
+    role: AuthorRole,
+) {
+    if email.is_empty() || !seen_emails.insert(email.clone()) {
+        return;
+    }
+    let display_name = {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            email.clone()
+        } else {
+            trimmed.to_string()
+        }
+    };
+    authors.push(CommitAuthor {
+        name: display_name,
+        email,
+        role,
+    });
 }

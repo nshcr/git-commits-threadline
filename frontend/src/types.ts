@@ -35,15 +35,28 @@ export interface AuthorInfo {
   commit_count: number;
 }
 
+export type AuthorRole = 'author' | 'co_author' | 'committer';
+
+export interface CommitAuthor {
+  name: string;
+  email: string;
+  /** Optional for backward compatibility with older chunk data. */
+  role?: AuthorRole;
+}
+
 export interface CommitNode {
   hash: string;
   short_hash: string;
   parent_hashes: string[];
+  /** Backward-compatible: may be absent in old chunk files. */
+  authors?: CommitAuthor[];
   author_name: string;
   author_email: string;
   timestamp: number;
   author_date: string;
   committer_name: string;
+  /** Backward-compatible: old chunk files may not contain this field. */
+  committer_email?: string;
   committer_date: string;
   message: string;
   branches: string[];
@@ -57,15 +70,19 @@ export interface CommitNode {
 export interface SimNode extends d3.SimulationNodeDatum {
   hash: string;
   short_hash: string;
+  authors: CommitAuthor[];
+  author_emails: string[];
   author_name: string;
   author_email: string;
   author_date: string;
   committer_name: string;
+  committer_email: string;
   committer_date: string;
   message: string;
   branches: string[];
   radius: number;
   color: string;
+  colors: string[];
   original_branch: string;
   timestamp: number;
   is_merge: boolean;

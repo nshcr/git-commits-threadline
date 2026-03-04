@@ -155,6 +155,9 @@ export class GraphRenderer {
     // Dimmed nodes first
     const nodesByColor = new Map<string, SimNode[]>();
     const dimNodesByColor = new Map<string, SimNode[]>();
+    const multiNodes: SimNode[] = [];
+    const dimMultiNodes: SimNode[] = [];
+    const highlightedNodes: SimNode[] = [];
     const specialNodes: SimNode[] = []; // root / tip for special markers
 
     for (const node of this.nodes) {
@@ -164,13 +167,23 @@ export class GraphRenderer {
       if (node.is_root || node.is_main_tip) specialNodes.push(node);
 
       const hi = this.isNodeHighlighted(node);
-      const map = (hasFilter && !hi) ? dimNodesByColor : nodesByColor;
-      let arr = map.get(node.color);
-      if (!arr) {
-        arr = [];
-        map.set(node.color, arr);
+      const isDimmed = hasFilter && !hi;
+      const palette = (node.colors && node.colors.length > 0) ? node.colors : [node.color];
+      if (!isDimmed) {
+        highlightedNodes.push(node);
       }
-      arr.push(node);
+      if (palette.length > 1) {
+        (isDimmed ? dimMultiNodes : multiNodes).push(node);
+      } else {
+        const map = isDimmed ? dimNodesByColor : nodesByColor;
+        const key = palette[0] ?? node.color;
+        let arr = map.get(key);
+        if (!arr) {
+          arr = [];
+          map.set(key, arr);
+        }
+        arr.push(node);
+      }
     }
 
     // Draw dimmed nodes
@@ -185,6 +198,9 @@ export class GraphRenderer {
         }
         ctx.fill();
       }
+      for (const node of dimMultiNodes) {
+        this.drawNodeFill(node);
+      }
     }
 
     // Draw highlighted (or all) nodes
@@ -198,6 +214,9 @@ export class GraphRenderer {
       }
       ctx.fill();
     }
+    for (const node of multiNodes) {
+      this.drawNodeFill(node);
+    }
 
     // Draw borders (only on non-dimmed nodes; dimmed nodes use low-alpha fill only)
     if (drawBorders) {
@@ -206,11 +225,9 @@ export class GraphRenderer {
       ctx.lineWidth = Math.max(0.3, Math.min(1.2, 0.5 * transform.k)) / transform.k;
       ctx.globalAlpha = 1.0;
       ctx.beginPath();
-      for (const [, nodes] of nodesByColor) {
-        for (const node of nodes) {
-          ctx.moveTo(node.x! + node.radius, node.y!);
-          ctx.arc(node.x!, node.y!, node.radius, 0, 2 * Math.PI);
-        }
+      for (const node of highlightedNodes) {
+        ctx.moveTo(node.x! + node.radius, node.y!);
+        ctx.arc(node.x!, node.y!, node.radius, 0, 2 * Math.PI);
       }
       ctx.stroke();
     }
@@ -278,10 +295,7 @@ export class GraphRenderer {
           ctx.closePath();
           ctx.fill();
           // Redraw node on top of diamond
-          ctx.fillStyle = node.color;
-          ctx.beginPath();
-          ctx.arc(node.x!, node.y!, node.radius, 0, 2 * Math.PI);
-          ctx.fill();
+          this.drawNodeFill(node);
         }
       }
     }
@@ -384,8 +398,34 @@ export class GraphRenderer {
     // AND semantics across dimensions: a node must satisfy ALL non-empty filters.
     // Within each dimension it's OR (any selected branch / any selected author).
     const branchOk = branches.size === 0 || branches.has(node.original_branch);
-    const authorOk = authors.size === 0 || authors.has(node.author_email.toLowerCase());
+    const authorOk = authors.size === 0 || node.author_emails.some((email) => authors.has(email));
     return branchOk && authorOk;
+  }
+
+  private drawNodeFill(node: SimNode): void {
+    const x = node.x;
+    const y = node.y;
+    if (x === undefined || y === undefined) return;
+    const colors = (node.colors && node.colors.length > 0) ? node.colors : [node.color];
+    if (colors.length <= 1) {
+      this.ctx.fillStyle = colors[0] ?? node.color;
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, node.radius, 0, 2 * Math.PI);
+      this.ctx.fill();
+      return;
+    }
+
+    const step = (2 * Math.PI) / colors.length;
+    for (let i = 0; i < colors.length; i++) {
+      const start = -Math.PI / 2 + i * step;
+      const end = start + step;
+      this.ctx.fillStyle = colors[i];
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y);
+      this.ctx.arc(x, y, node.radius, start, end);
+      this.ctx.closePath();
+      this.ctx.fill();
+    }
   }
 
   private isLinkHighlighted(link: SimLink): boolean {

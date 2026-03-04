@@ -1,3 +1,4 @@
+import { authorRoleLabel, canonicalizeRole, normalizeCommitAuthors } from './authors';
 import type { SimNode } from './types';
 import { escapeHtml } from './utils';
 
@@ -38,9 +39,32 @@ export class Tooltip {
       branchesHtml = `<div class="tooltip-branches">${ tags }</div>`;
     }
 
+    const authors = normalizeCommitAuthors(node);
+    const committerEmail = (node.committer_email ?? '').trim().toLowerCase();
+    const committerAlreadyListed = committerEmail
+      ? authors.some((a) => a.email === committerEmail)
+      : false;
+
+    const committerHtml = (!committerAlreadyListed && committerEmail)
+      ? `<div class="tooltip-author-row">
+          <span class="tooltip-author-role tooltip-author-role-committer">${ escapeHtml(authorRoleLabel('committer')) }</span>
+          <span class="tooltip-author-value">${ escapeHtml(node.committer_name || committerEmail) } &lt;${ escapeHtml(committerEmail) }&gt;</span>
+        </div>`
+      : '';
+
+    const authorsHtml = authors
+      .map((a) => {
+        const roleClass = canonicalizeRole(a.role);
+        return `<div class="tooltip-author-row">
+          <span class="tooltip-author-role tooltip-author-role-${ roleClass }">${ escapeHtml(authorRoleLabel(a.role)) }</span>
+          <span class="tooltip-author-value">${ escapeHtml(a.name) } &lt;${ escapeHtml(a.email) }&gt;</span>
+        </div>`;
+      })
+      .join('') + committerHtml;
+
     this.element.innerHTML = `
       <div class="tooltip-header">${ node.short_hash }</div>
-      <div class="tooltip-author">${ escapeHtml(node.author_name) } &lt;${ escapeHtml(node.author_email) }&gt;</div>
+      <div class="tooltip-author-list">${ authorsHtml }</div>
       <div class="tooltip-date">${ date }</div>
       <div class="tooltip-message">${ escapeHtml(node.message) }</div>
       ${ branchesHtml }

@@ -53,15 +53,32 @@ pub struct AuthorInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitAuthor {
+    pub name: String,
+    pub email: String,
+    pub role: AuthorRole,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthorRole {
+    Author,
+    CoAuthor,
+    Committer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitNode {
     pub hash: String,
     pub short_hash: String,
     pub parent_hashes: Vec<String>,
+    pub authors: Vec<CommitAuthor>,
     pub author_name: String,
     pub author_email: String,
     pub timestamp: i64,
     pub author_date: String,
     pub committer_name: String,
+    pub committer_email: String,
     pub committer_date: String,
     pub message: String,
     pub branches: Vec<String>,

@@ -1,3 +1,4 @@
+import { normalizeCommitAuthors } from './authors';
 import { getAuthorColorByEmail } from './colors';
 import type { HighlightFilter } from './renderer';
 import type { BranchInfo, CommitNode } from './types';
@@ -9,6 +10,7 @@ interface AuthorStat {
   email: string;
   name: string;
   count: number;
+  coCount: number;
   color: string;
 }
 
@@ -37,6 +39,8 @@ export class DynamicLegend {
   private authorBranches = new Map<string, Set<string>>();
   /** branch name → email → commit count on that branch */
   private branchAuthorCount = new Map<string, Map<string, number>>();
+  /** branch name → email → co-authored commit count on that branch */
+  private branchAuthorCoCount = new Map<string, Map<string, number>>();
   private collapsed = false;
   private side: 'left' | 'right';
 
@@ -82,41 +86,57 @@ export class DynamicLegend {
       this.seenBranches.add(commit.original_branch);
       this.dirty = true;
     }
-    const email = commit.author_email.toLowerCase();
-    const existing = this.authorMap.get(email);
-    if (existing) {
-      existing.count++;
-    } else {
-      this.authorMap.set(email, {
-        email,
-        name: commit.author_name,
-        count: 1,
-        color: getAuthorColorByEmail(email),
-      });
-    }
-    // Cross-index: branch ↔ author
-    if (commit.original_branch) {
-      let authors = this.branchAuthors.get(commit.original_branch);
-      if (!authors) {
-        authors = new Set();
-        this.branchAuthors.set(commit.original_branch, authors);
+    const authors = normalizeCommitAuthors(commit);
+    for (const author of authors) {
+      const email = author.email;
+      const existing = this.authorMap.get(email);
+      if (existing) {
+        existing.count++;
+        if (author.role === 'co_author') existing.coCount++;
+      } else {
+        this.authorMap.set(email, {
+          email,
+          name: author.name,
+          count: 1,
+          coCount: author.role === 'co_author' ? 1 : 0,
+          color: getAuthorColorByEmail(email),
+        });
       }
-      authors.add(email);
 
-      let branches = this.authorBranches.get(email);
-      if (!branches) {
-        branches = new Set();
-        this.authorBranches.set(email, branches);
-      }
-      branches.add(commit.original_branch);
+      // Cross-index: branch ↔ author
+      if (commit.original_branch) {
+        let branchAuthors = this.branchAuthors.get(commit.original_branch);
+        if (!branchAuthors) {
+          branchAuthors = new Set();
+          this.branchAuthors.set(commit.original_branch, branchAuthors);
+        }
+        branchAuthors.add(email);
 
-      // Per-branch commit count
-      let bac = this.branchAuthorCount.get(commit.original_branch);
-      if (!bac) {
-        bac = new Map();
-        this.branchAuthorCount.set(commit.original_branch, bac);
+        let authorBranches = this.authorBranches.get(email);
+        if (!authorBranches) {
+          authorBranches = new Set();
+          this.authorBranches.set(email, authorBranches);
+        }
+        authorBranches.add(commit.original_branch);
+
+        // Per-branch commit count
+        let bac = this.branchAuthorCount.get(commit.original_branch);
+        if (!bac) {
+          bac = new Map();
+          this.branchAuthorCount.set(commit.original_branch, bac);
+        }
+        bac.set(email, (bac.get(email) ?? 0) + 1);
+
+        // Per-branch co-authored commit count
+        let bcc = this.branchAuthorCoCount.get(commit.original_branch);
+        if (!bcc) {
+          bcc = new Map();
+          this.branchAuthorCoCount.set(commit.original_branch, bcc);
+        }
+        if (author.role === 'co_author') {
+          bcc.set(email, (bcc.get(email) ?? 0) + 1);
+        }
       }
-      bac.set(email, (bac.get(email) ?? 0) + 1);
     }
     this.dirty = true;
   }
@@ -127,6 +147,7 @@ export class DynamicLegend {
     this.branchAuthors.clear();
     this.authorBranches.clear();
     this.branchAuthorCount.clear();
+    this.branchAuthorCoCount.clear();
     this.activeBranches.clear();
     this.activeAuthors.clear();
     this.lastToggledBranch = null;
@@ -394,20 +415,32 @@ export class DynamicLegend {
 
     // Build a combined per-author count across all selected branches.
     let combinedCounts: Map<string, number> | null = null;
+    let combinedCoCounts: Map<string, number> | null = null;
     if (hasBranchFilter) {
       combinedCounts = new Map();
+      combinedCoCounts = new Map();
       for (const branch of this.activeBranches) {
         const bac = this.branchAuthorCount.get(branch);
+        const bcc = this.branchAuthorCoCount.get(branch);
         if (!bac) continue;
         for (const [email, cnt] of bac) {
           combinedCounts.set(email, (combinedCounts.get(email) ?? 0) + cnt);
+        }
+        if (bcc) {
+          for (const [email, cnt] of bcc) {
+            combinedCoCounts.set(email, (combinedCoCounts.get(email) ?? 0) + cnt);
+          }
         }
       }
     }
 
     const sorted = [...this.authorMap.values()]
       .filter(a => !hasBranchFilter || (combinedCounts?.has(a.email) ?? false))
-      .map(a => ({ ...a, displayCount: combinedCounts ? (combinedCounts.get(a.email) ?? 0) : a.count }))
+      .map(a => ({
+        ...a,
+        displayCount: combinedCounts ? (combinedCounts.get(a.email) ?? 0) : a.count,
+        displayCoCount: combinedCoCounts ? (combinedCoCounts.get(a.email) ?? 0) : a.coCount,
+      }))
       .sort((a, b) => b.displayCount - a.displayCount);
     this.authorTitle.textContent = `Authors (${ sorted.length })`;
 
@@ -417,9 +450,10 @@ export class DynamicLegend {
       item.className = 'legend-item';
       item.dataset.email = author.email;
       if (this.activeAuthors.has(author.email)) item.classList.add('legend-item-active');
+      const coCountTitle = 'Co-authored commits';
       item.innerHTML = `<div class="legend-dot" style="background:${ author.color }"></div>
         <span class="legend-label" title="${ escapeHtml(author.email) }">${ escapeHtml(author.name) }</span>
-        <span class="legend-count">${ author.displayCount.toLocaleString() }</span>`;
+        <span class="legend-count">${ author.displayCount.toLocaleString() }<span class="legend-co-count" title="${ coCountTitle }">(${ author.displayCoCount.toLocaleString() })</span></span>`;
       item.addEventListener('click', () => this.toggleFilter('author', author.email));
       frag.appendChild(item);
     }
