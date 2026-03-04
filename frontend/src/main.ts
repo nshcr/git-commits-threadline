@@ -292,6 +292,7 @@ async function main() {
   });
 
   // --- Controls ---
+  if (playHint) playHint.addEventListener('click', () => handlePlay());
   playBtn.addEventListener('click', () => handlePlay());
   stopBtn.addEventListener('click', () => animation.stop());
   stepBackBtn.addEventListener('click', () => {
