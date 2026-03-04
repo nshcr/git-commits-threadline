@@ -316,7 +316,7 @@ body.seeking {
     padding: 16px 28px;
     transform: translate(-50%, -50%);
     white-space: nowrap;
-    pointer-events: none;
+    cursor: pointer;
     color: #8b949e;
     border: 1px solid #30363d;
     border-radius: 10px;
