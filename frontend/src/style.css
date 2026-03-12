@@ -314,9 +314,9 @@ body.seeking {
     top: 50%;
     left: 50%;
     padding: 16px 28px;
+    cursor: pointer;
     transform: translate(-50%, -50%);
     white-space: nowrap;
-    cursor: pointer;
     color: #8b949e;
     border: 1px solid #30363d;
     border-radius: 10px;
@@ -490,6 +490,85 @@ body.seeking {
     align-items: center;
     flex-shrink: 0;
     gap: 2px;
+}
+
+.legend-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 2px 0 6px;
+}
+
+.legend-mailmap-toggle {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    gap: 6px;
+}
+
+.legend-mailmap-toggle input {
+    display: none;
+}
+
+.legend-mailmap-pill {
+    position: relative;
+    width: 26px;
+    height: 14px;
+    transition: background 0.15s ease;
+    border-radius: 999px;
+    background: #30363d;
+}
+
+.legend-mailmap-pill::after {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    content: '';
+    transition: transform 0.15s ease, background 0.15s ease;
+    border-radius: 50%;
+    background: #8b949e;
+}
+
+.legend-mailmap-toggle input:checked + .legend-mailmap-pill {
+    background: #238636;
+}
+
+.legend-mailmap-toggle input:checked + .legend-mailmap-pill::after {
+    transform: translateX(12px);
+    background: #ffffff;
+}
+
+.legend-mailmap-label {
+    font-size: 11px;
+    color: #8b949e;
+}
+
+.legend-mailmap-toggle:hover .legend-mailmap-label {
+    color: #c9d1d9;
+}
+
+.legend-merge-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #8b949e;
+    border: 1px solid #30363d;
+    border-radius: 999px;
+}
+
+.legend-merge-badge[data-state="merged"] {
+    color: #7ee787;
+    border-color: rgba(35, 134, 54, 0.6);
+}
+
+.legend-merge-badge[data-state="mergeable"] {
+    color: #58a6ff;
+    border-color: rgba(88, 166, 255, 0.5);
 }
 
 .legend-clear-col-btn {

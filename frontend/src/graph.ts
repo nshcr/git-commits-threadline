@@ -1,6 +1,7 @@
 import * as d3 from 'd3';
 import { normalizeCommitAuthors } from './authors';
 import { getAuthorColorByEmail } from './colors';
+import type { MailmapResolver } from './mailmap';
 import type { BranchInfo, CommitNode, SimLink, SimNode } from './types';
 
 export class ForceGraph {
@@ -17,11 +18,19 @@ export class ForceGraph {
   private deferredLinks = new Map<string, { targetHash: string; branchColor: string }[]>();
   private nodeIndex = 0;
   private totalCommits = 1000;
+  private authorResolver?: MailmapResolver;
 
-  constructor(width: number, height: number, branches: BranchInfo[], mainBranch: string) {
+  constructor(
+    width: number,
+    height: number,
+    branches: BranchInfo[],
+    mainBranch: string,
+    authorResolver?: MailmapResolver,
+  ) {
     this.width = width;
     this.height = height;
     this.mainBranch = mainBranch;
+    this.authorResolver = authorResolver;
 
     for (const b of branches) {
       this.branchColorMap.set(b.name, b.color);
@@ -193,11 +202,29 @@ export class ForceGraph {
     this.totalCommits = Math.max(n, 1);
   }
 
+  setAuthorResolver(resolver?: MailmapResolver): void {
+    this.authorResolver = resolver;
+    this.applyAuthorResolver();
+  }
+
+  applyAuthorResolver(): void {
+    for (const node of this.nodes) {
+      this.applyAuthorMapping(node);
+    }
+  }
+
   private createNode(commit: CommitNode, x: number, y: number): SimNode {
-    const authors = normalizeCommitAuthors(commit);
+    const rawAuthors = commit.authors && commit.authors.length > 0
+      ? commit.authors
+      : [{ name: commit.author_name, email: commit.author_email, role: 'author' as const }];
+    const authors = normalizeCommitAuthors({
+      authors: rawAuthors,
+      author_name: commit.author_name,
+      author_email: commit.author_email,
+    }, this.authorResolver);
     const primary = authors[0] ?? {
       name: commit.author_name,
-      email: commit.author_email.toLowerCase(),
+      email: commit.author_email.trim().toLowerCase(),
     };
     const colors = authors.map((a) => getAuthorColorByEmail(a.email));
     return {
@@ -207,6 +234,9 @@ export class ForceGraph {
       author_emails: authors.map((a) => a.email),
       author_name: primary.name,
       author_email: primary.email,
+      raw_authors: rawAuthors,
+      raw_author_name: commit.author_name,
+      raw_author_email: commit.author_email,
       author_date: commit.author_date,
       committer_name: commit.committer_name,
       committer_email: (commit.committer_email ?? '').trim().toLowerCase(),
@@ -225,6 +255,25 @@ export class ForceGraph {
       x,
       y,
     };
+  }
+
+  private applyAuthorMapping(node: SimNode): void {
+    const authors = normalizeCommitAuthors({
+      authors: node.raw_authors,
+      author_name: node.raw_author_name,
+      author_email: node.raw_author_email,
+    }, this.authorResolver);
+    const primary = authors[0] ?? {
+      name: node.raw_author_name,
+      email: node.raw_author_email.trim().toLowerCase(),
+    };
+    const colors = authors.map((a) => getAuthorColorByEmail(a.email));
+    node.authors = authors;
+    node.author_emails = authors.map((a) => a.email);
+    node.author_name = primary.name;
+    node.author_email = primary.email;
+    node.colors = colors;
+    node.color = colors[0] ?? getAuthorColorByEmail(primary.email);
   }
 
   /** Temporal drift from bottom-right to top-left; drift range scales with total commit count. */

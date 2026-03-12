@@ -91,6 +91,7 @@ pub fn export_all() -> Result<()> {
                     branches: graph.branches.clone(),
                     main_branch: graph.main_branch.clone(),
                     authors: graph.authors.clone(),
+                    mailmap: graph.mailmap.clone(),
                     github_url: graph.github_url.clone(),
                     chunks: chunk_infos,
                 };

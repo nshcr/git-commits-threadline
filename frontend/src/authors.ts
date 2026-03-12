@@ -1,3 +1,4 @@
+import type { MailmapResolver } from './mailmap';
 import type { AuthorRole, CommitAuthor } from './types';
 
 type AuthorCarrier = {
@@ -6,7 +7,7 @@ type AuthorCarrier = {
   author_email: string;
 };
 
-export function normalizeCommitAuthors(commit: AuthorCarrier): CommitAuthor[] {
+export function normalizeCommitAuthors(commit: AuthorCarrier, resolver?: MailmapResolver): CommitAuthor[] {
   const input = commit.authors && commit.authors.length > 0
     ? commit.authors
     : [{ name: commit.author_name, email: commit.author_email, role: 'author' as const }];
@@ -16,7 +17,8 @@ export function normalizeCommitAuthors(commit: AuthorCarrier): CommitAuthor[] {
 
   for (let i = 0; i < input.length; i++) {
     const a = input[i];
-    const email = a.email.trim().toLowerCase();
+    const resolved = resolver?.resolveAuthor(a.name, a.email);
+    const email = (resolved?.email ?? a.email).trim().toLowerCase();
     if (!email || seen.has(email)) continue;
 
     const role = canonicalizeRole(a.role ?? inferRoleByIndex(i));
@@ -25,18 +27,16 @@ export function normalizeCommitAuthors(commit: AuthorCarrier): CommitAuthor[] {
     if (role === 'committer') continue;
 
     seen.add(email);
-    out.push({
-      name: a.name?.trim() || email,
-      email,
-      role,
-    });
+    const name = (resolved?.name ?? a.name)?.trim() || email;
+    out.push({ name, email, role });
   }
 
   if (out.length === 0) {
-    const email = commit.author_email.trim().toLowerCase();
+    const resolved = resolver?.resolveAuthor(commit.author_name, commit.author_email);
+    const email = (resolved?.email ?? commit.author_email).trim().toLowerCase();
     if (email) {
       out.push({
-        name: commit.author_name?.trim() || email,
+        name: (resolved?.name ?? commit.author_name)?.trim() || email,
         email,
         role: 'author',
       });

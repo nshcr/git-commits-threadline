@@ -13,6 +13,7 @@ export interface GraphMeta {
   branches: BranchInfo[];
   main_branch: string;
   authors: AuthorInfo[];
+  mailmap?: MailmapData;
   github_url: string | null;
   chunks: ChunkInfo[];
 }
@@ -33,6 +34,11 @@ export interface AuthorInfo {
   name: string;
   email: string;
   commit_count: number;
+}
+
+export interface MailmapData {
+  aliases: Record<string, string>;
+  names: Record<string, string>;
 }
 
 export type AuthorRole = 'author' | 'co_author' | 'committer';
@@ -74,6 +80,9 @@ export interface SimNode extends d3.SimulationNodeDatum {
   author_emails: string[];
   author_name: string;
   author_email: string;
+  raw_authors: CommitAuthor[];
+  raw_author_name: string;
+  raw_author_email: string;
   author_date: string;
   committer_name: string;
   committer_email: string;

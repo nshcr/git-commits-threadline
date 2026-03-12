@@ -1,11 +1,14 @@
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use gix::revision::walk::Sorting;
 use gix::traverse::commit::simple::CommitTimeOrder;
 
-use crate::models::{AuthorInfo, AuthorRole, BranchInfo, CommitAuthor, CommitNode, GraphData};
+use crate::models::{
+    AuthorInfo, AuthorRole, BranchInfo, CommitAuthor, CommitNode, GraphData, Mailmap,
+};
 
 #[rustfmt::skip]
 const BRANCH_PALETTE: &[&str] = &[
@@ -51,6 +54,7 @@ struct RawCommit {
 
 pub fn build_graph(repo_path: &Path) -> Result<GraphData> {
     let repo = gix::discover(repo_path).context("Failed to open git repository")?;
+    let mailmap = read_mailmap(repo_path);
 
     // Collect all branches (local + remote)
     let references = repo.references().context("Failed to access references")?;
@@ -417,6 +421,7 @@ pub fn build_graph(repo_path: &Path) -> Result<GraphData> {
         commits,
         main_branch: main_branch_name,
         authors,
+        mailmap,
         github_url,
     })
 }
@@ -556,4 +561,131 @@ fn push_unique_author(
         email,
         role,
     });
+}
+
+fn read_mailmap(repo_path: &Path) -> Mailmap {
+    let path = repo_path.join(".mailmap");
+    let Ok(content) = fs::read_to_string(&path) else {
+        return Mailmap::default();
+    };
+
+    let mut aliases: HashMap<String, String> = HashMap::new();
+    let mut names: HashMap<String, String> = HashMap::new();
+
+    for raw_line in content.lines() {
+        let line = strip_mailmap_comment(raw_line).trim();
+        if line.is_empty() {
+            continue;
+        }
+        let identities = parse_mailmap_identities(line);
+        if identities.is_empty() {
+            continue;
+        }
+        let canon = &identities[0];
+        let canonical_email = normalize_email(&canon.email);
+        if canonical_email.is_empty() {
+            continue;
+        }
+        if let Some(name) = canon
+            .name
+            .as_ref()
+            .map(|n| n.trim())
+            .filter(|n| !n.is_empty())
+        {
+            names.insert(canonical_email.clone(), name.to_string());
+        }
+        if identities.len() >= 2 {
+            let alias = &identities[1];
+            let alias_email = normalize_email(&alias.email);
+            if !alias_email.is_empty() && alias_email != canonical_email {
+                aliases.insert(alias_email, canonical_email.clone());
+            }
+        }
+    }
+
+    // Resolve alias chains to their final canonical email.
+    let alias_keys: Vec<String> = aliases.keys().cloned().collect();
+    for key in alias_keys {
+        if let Some(target) = resolve_alias(&key, &aliases) {
+            if target == key {
+                aliases.remove(&key);
+            } else {
+                aliases.insert(key, target);
+            }
+        }
+    }
+
+    // Attach canonical names to their final canonical email.
+    let name_pairs: Vec<(String, String)> = names.into_iter().collect();
+    let mut resolved_names: HashMap<String, String> = HashMap::new();
+    for (email, name) in name_pairs {
+        let target = resolve_alias(&email, &aliases).unwrap_or(email.clone());
+        resolved_names.insert(target, name);
+    }
+
+    Mailmap {
+        aliases,
+        names: resolved_names,
+    }
+}
+
+struct MailmapIdentity {
+    name: Option<String>,
+    email: String,
+}
+
+fn strip_mailmap_comment(line: &str) -> &str {
+    let mut in_angle = false;
+    for (idx, ch) in line.char_indices() {
+        match ch {
+            '<' => in_angle = true,
+            '>' => in_angle = false,
+            '#' if !in_angle => return &line[..idx],
+            _ => {}
+        }
+    }
+    line
+}
+
+fn parse_mailmap_identities(line: &str) -> Vec<MailmapIdentity> {
+    let mut out = Vec::new();
+    let mut idx = 0;
+    let mut name_start = 0;
+    while let Some(lt_rel) = line[idx..].find('<') {
+        let lt = idx + lt_rel;
+        let Some(gt_rel) = line[lt + 1..].find('>') else {
+            break;
+        };
+        let gt = lt + 1 + gt_rel;
+        let name_part = line[name_start..lt].trim();
+        let email = line[lt + 1..gt].trim();
+        if !email.is_empty() {
+            out.push(MailmapIdentity {
+                name: if name_part.is_empty() {
+                    None
+                } else {
+                    Some(name_part.to_string())
+                },
+                email: email.to_string(),
+            });
+        }
+        idx = gt + 1;
+        name_start = idx;
+    }
+    out
+}
+
+fn resolve_alias(email: &str, aliases: &HashMap<String, String>) -> Option<String> {
+    let mut current = normalize_email(email);
+    if current.is_empty() {
+        return None;
+    }
+    let mut seen: HashSet<String> = HashSet::new();
+    while let Some(next) = aliases.get(&current) {
+        if !seen.insert(current.clone()) {
+            break;
+        }
+        current = next.clone();
+    }
+    Some(current)
 }

@@ -5,11 +5,13 @@ import { ChunkLoader } from './chunk-loader';
 import { getAuthorColorByEmail } from './colors';
 import { ForceGraph } from './graph';
 import { DynamicLegend } from './legend';
+import { MailmapResolver } from './mailmap';
 import { GraphRenderer } from './renderer';
 import { Tooltip } from './tooltip';
 import type { GraphMeta, SimNode } from './types';
 
 async function main() {
+  const mailmapPrefKey = 'legend-mailmap-enabled';
   const canvas = document.getElementById('graph-canvas') as HTMLCanvasElement;
   const playBtn = document.getElementById('play-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
@@ -46,6 +48,13 @@ async function main() {
   commitCounter.textContent = `0 / ${ meta.total_commits.toLocaleString() }`;
 
   const chunkLoader = new ChunkLoader(meta.chunks);
+  const mailmap = new MailmapResolver(meta.mailmap);
+  const storedMailmapPref = localStorage.getItem(mailmapPrefKey);
+  const defaultMailmapEnabled = mailmap.hasData();
+  const mailmapEnabled = mailmap.hasData()
+    ? (storedMailmapPref === null ? defaultMailmapEnabled : storedMailmapPref === '1')
+    : false;
+  mailmap.setEnabled(mailmapEnabled);
 
   // --- Setup rendering ---
   const renderer = new GraphRenderer(canvas);
@@ -58,15 +67,50 @@ async function main() {
     window.innerHeight,
     meta.branches,
     meta.main_branch,
+    mailmap,
   );
   forceGraph.setTotalCommits(meta.total_commits);
   window.addEventListener('resize', () => forceGraph.resize(window.innerWidth, window.innerHeight));
 
-  for (const author of meta.authors) getAuthorColorByEmail(author.email);
+  for (const author of meta.authors) {
+    const email = mailmapEnabled ? mailmap.resolveEmailAlways(author.email) : author.email;
+    getAuthorColorByEmail(email);
+  }
 
   const animation = new AnimationController(meta.total_commits);
 
-  const legend = new DynamicLegend(
+  let legend: DynamicLegend;
+  const remapAuthorSelection = (authors: Set<string>, enabled: boolean): Set<string> => {
+    const next = new Set<string>();
+    if (!mailmap.hasData()) return new Set(authors);
+    if (enabled) {
+      for (const email of authors) {
+        const resolved = mailmap.resolveEmailAlways(email);
+        if (resolved) next.add(resolved);
+      }
+    } else {
+      for (const email of authors) {
+        const aliases = mailmap.expandCanonical(email);
+        if (aliases.length === 0) continue;
+        for (const alias of aliases) next.add(alias);
+      }
+    }
+    return next;
+  };
+  const handleMailmapToggle = (enabled: boolean) => {
+    localStorage.setItem(mailmapPrefKey, enabled ? '1' : '0');
+    mailmap.setEnabled(enabled);
+    forceGraph.applyAuthorResolver();
+    const active = legend.getActiveFilters();
+    const remappedAuthors = remapAuthorSelection(active.authors, enabled);
+    legend.rebuildFromNodes(forceGraph.nodes, {
+      branches: active.branches,
+      authors: remappedAuthors,
+    });
+    renderer.invalidateQuadtree();
+  };
+
+  legend = new DynamicLegend(
     legendEl,
     repoDisplayName,
     meta.branches,
@@ -78,6 +122,12 @@ async function main() {
       backBtn.classList.toggle('back-btn-right', side === 'left');
     },
     meta.github_url ?? null,
+    {
+      resolver: mailmap,
+      enabled: mailmapEnabled,
+      available: mailmap.hasData(),
+      onToggle: handleMailmapToggle,
+    },
   );
 
   const tooltip = new Tooltip(tooltipEl, meta.main_branch);

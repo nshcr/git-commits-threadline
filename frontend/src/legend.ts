@@ -1,5 +1,6 @@
 import { normalizeCommitAuthors } from './authors';
 import { getAuthorColorByEmail } from './colors';
+import type { MailmapResolver } from './mailmap';
 import type { HighlightFilter } from './renderer';
 import type { BranchInfo, CommitNode } from './types';
 import { escapeHtml } from './utils';
@@ -14,6 +15,15 @@ interface AuthorStat {
   color: string;
 }
 
+type CommitLike = Pick<CommitNode, 'authors' | 'author_name' | 'author_email' | 'original_branch'>;
+
+interface MailmapToggleConfig {
+  resolver?: MailmapResolver;
+  enabled: boolean;
+  available: boolean;
+  onToggle: (enabled: boolean) => void;
+}
+
 export class DynamicLegend {
   private el: HTMLDivElement;
   private repoName: string;
@@ -22,6 +32,10 @@ export class DynamicLegend {
   private isPlayingFn: () => boolean;
   private onSideChange: (side: 'left' | 'right') => void;
   private githubUrl: string | null;
+  private authorResolver?: MailmapResolver;
+  private mailmapEnabled = false;
+  private mailmapAvailable = false;
+  private onMailmapToggle?: (enabled: boolean) => void;
 
   private seenBranches = new Set<string>();
   private authorMap = new Map<string, AuthorStat>();
@@ -59,6 +73,7 @@ export class DynamicLegend {
   private clearBranchBtn!: HTMLButtonElement;
   private clearAuthorBtn!: HTMLButtonElement;
   private dirty = false;
+  private mailmapToggleInput?: HTMLInputElement;
 
   constructor(
     el: HTMLDivElement,
@@ -68,6 +83,7 @@ export class DynamicLegend {
     isPlayingFn: () => boolean,
     onSideChange: (side: 'left' | 'right') => void,
     githubUrl: string | null,
+    mailmapConfig?: MailmapToggleConfig,
   ) {
     this.el = el;
     this.repoName = repoName;
@@ -76,17 +92,23 @@ export class DynamicLegend {
     this.isPlayingFn = isPlayingFn;
     this.onSideChange = onSideChange;
     this.githubUrl = githubUrl;
+    if (mailmapConfig) {
+      this.authorResolver = mailmapConfig.resolver;
+      this.mailmapEnabled = mailmapConfig.enabled;
+      this.mailmapAvailable = mailmapConfig.available;
+      this.onMailmapToggle = mailmapConfig.onToggle;
+    }
     this.side = (localStorage.getItem(LEGEND_SIDE_KEY) as 'left' | 'right') || 'right';
     this.buildSkeleton();
     this.applySide();
   }
 
-  trackCommit(commit: CommitNode) {
+  trackCommit(commit: CommitLike) {
     if (commit.original_branch && !this.seenBranches.has(commit.original_branch)) {
       this.seenBranches.add(commit.original_branch);
       this.dirty = true;
     }
-    const authors = normalizeCommitAuthors(commit);
+    const authors = normalizeCommitAuthors(commit, this.authorResolver);
     for (const author of authors) {
       const email = author.email;
       const existing = this.authorMap.get(email);
@@ -167,6 +189,35 @@ export class DynamicLegend {
     this.authorTitle.textContent = 'Authors (0)';
   }
 
+  getActiveFilters(): HighlightFilter {
+    return {
+      branches: new Set(this.activeBranches),
+      authors: new Set(this.activeAuthors),
+    };
+  }
+
+  rebuildFromNodes(nodes: CommitLike[], active?: HighlightFilter) {
+    const nextBranches = active?.branches ? new Set(active.branches) : new Set(this.activeBranches);
+    const nextAuthors = active?.authors ? new Set(active.authors) : new Set(this.activeAuthors);
+
+    this.resetStats();
+    this.activeBranches = nextBranches;
+    this.activeAuthors = nextAuthors;
+    this.lastToggledBranch = null;
+    this.lastToggledAuthor = null;
+
+    for (const node of nodes) {
+      this.trackCommit(node);
+    }
+
+    this.updateClearButtons();
+    const hasAny = this.activeBranches.size > 0 || this.activeAuthors.size > 0;
+    this.onFilterChange(hasAny
+      ? { branches: new Set(this.activeBranches), authors: new Set(this.activeAuthors) }
+      : null);
+    this.render();
+  }
+
   clearFilter() {
     if (this.activeBranches.size === 0 && this.activeAuthors.size === 0) return;
     this.activeBranches.clear();
@@ -185,6 +236,20 @@ export class DynamicLegend {
     this.renderBranches();
     this.renderAuthors();
     this.scrollToActive();
+  }
+
+  private resetStats() {
+    this.seenBranches.clear();
+    this.authorMap.clear();
+    this.branchAuthors.clear();
+    this.authorBranches.clear();
+    this.branchAuthorCount.clear();
+    this.branchAuthorCoCount.clear();
+    this.dirty = true;
+    this.branchBody.innerHTML = '';
+    this.authorBody.innerHTML = '';
+    this.branchTitle.textContent = 'Branches (0)';
+    this.authorTitle.textContent = 'Authors (0)';
   }
 
   private clearColumnFilter(type: 'branch' | 'author') {
@@ -234,6 +299,15 @@ export class DynamicLegend {
       ? `<a class="legend-gh-link" href="${ escapeHtml(this.githubUrl) }" target="_blank" rel="noopener noreferrer" title="View on GitHub"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg></a>`
       : '';
     const searchSvg = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><line x1="10.2" y1="10.2" x2="14" y2="14"/></svg>`;
+    const mailmapToggle = this.mailmapAvailable
+      ? `<div class="legend-toggle-row" id="legend-mailmap-row">
+          <label class="legend-mailmap-toggle" title="Merge identities using .mailmap">
+            <input type="checkbox" id="legend-mailmap-toggle" ${ this.mailmapEnabled ? 'checked' : '' } />
+            <span class="legend-mailmap-pill"></span>
+            <span class="legend-mailmap-label">Merge .mailmap</span>
+          </label>
+        </div>`
+      : '';
     this.el.innerHTML = `
       <div class="legend-header">
         <div class="legend-repo-info">
@@ -264,6 +338,7 @@ export class DynamicLegend {
               <button class="legend-search-btn" id="legend-author-search-btn" title="Search authors">${ searchSvg }</button>
             </div>
           </div>
+          ${ mailmapToggle }
           <input class="legend-search-input hidden" id="legend-author-search" type="search" placeholder="Filter authors\u2026" autocomplete="off" />
           <div class="legend-body" id="legend-author-body"></div>
         </div>
@@ -280,12 +355,20 @@ export class DynamicLegend {
     this.clearAllBtn = this.el.querySelector('#legend-clear-all-btn') as HTMLButtonElement;
     this.clearBranchBtn = this.el.querySelector('#legend-clear-branch-btn') as HTMLButtonElement;
     this.clearAuthorBtn = this.el.querySelector('#legend-clear-author-btn') as HTMLButtonElement;
+    const mailmapToggleInput = this.el.querySelector('#legend-mailmap-toggle') as HTMLInputElement | null;
+    this.mailmapToggleInput = mailmapToggleInput ?? undefined;
 
     this.collapseBtn.addEventListener('click', () => this.toggleCollapse());
     this.moveBtn.addEventListener('click', () => this.toggleSide());
     this.clearAllBtn.addEventListener('click', () => this.clearFilter());
     this.clearBranchBtn.addEventListener('click', () => this.clearColumnFilter('branch'));
     this.clearAuthorBtn.addEventListener('click', () => this.clearColumnFilter('author'));
+    if (this.mailmapToggleInput) {
+      this.mailmapToggleInput.addEventListener('change', () => {
+        this.mailmapEnabled = this.mailmapToggleInput?.checked ?? false;
+        if (this.onMailmapToggle) this.onMailmapToggle(this.mailmapEnabled);
+      });
+    }
 
     const branchSearchBtn = this.el.querySelector('#legend-branch-search-btn') as HTMLButtonElement;
     const authorSearchBtn = this.el.querySelector('#legend-author-search-btn') as HTMLButtonElement;
@@ -315,6 +398,37 @@ export class DynamicLegend {
       this.authorSearchQuery = this.authorSearchInput.value.toLowerCase();
       this.applyAuthorSearch();
     });
+  }
+
+  private getAuthorMergeBadge(email: string): { text: string; title: string; state: 'merged' | 'mergeable' } | null {
+    if (!this.mailmapAvailable || !this.authorResolver) return null;
+    const canonical = this.authorResolver.getCanonicalEmail(email);
+    if (!canonical) return null;
+
+    if (this.mailmapEnabled) {
+      const aliases = this.authorResolver.getAliases(canonical);
+      if (aliases.length === 0) return null;
+      const canonicalName = this.authorResolver.getCanonicalName(canonical);
+      const canonicalLabel = canonicalName ? `${ canonicalName } <${ canonical }>` : canonical;
+      const aliasList = aliases.join(', ');
+      return {
+        text: 'Merged',
+        title: `Merged identity: ${ canonicalLabel } (includes ${ aliasList })`,
+        state: 'merged',
+      };
+    }
+
+    if (canonical !== email) {
+      const canonicalName = this.authorResolver.getCanonicalName(canonical);
+      const canonicalLabel = canonicalName ? `${ canonicalName } <${ canonical }>` : canonical;
+      return {
+        text: 'Mergeable',
+        title: `Will merge into ${ canonicalLabel }`,
+        state: 'mergeable',
+      };
+    }
+
+    return null;
   }
 
   private getDisplayName(): string {
@@ -451,8 +565,13 @@ export class DynamicLegend {
       item.dataset.email = author.email;
       if (this.activeAuthors.has(author.email)) item.classList.add('legend-item-active');
       const coCountTitle = 'Co-authored commits';
+      const badge = this.getAuthorMergeBadge(author.email);
+      const badgeHtml = badge
+        ? `<span class="legend-merge-badge" data-state="${ badge.state }" title="${ escapeHtml(badge.title) }">${ escapeHtml(badge.text) }</span>`
+        : '';
       item.innerHTML = `<div class="legend-dot" style="background:${ author.color }"></div>
         <span class="legend-label" title="${ escapeHtml(author.email) }">${ escapeHtml(author.name) }</span>
+        ${ badgeHtml }
         <span class="legend-count">${ author.displayCount.toLocaleString() }<span class="legend-co-count" title="${ coCountTitle }">(${ author.displayCoCount.toLocaleString() })</span></span>`;
       item.addEventListener('click', () => this.toggleFilter('author', author.email));
       frag.appendChild(item);

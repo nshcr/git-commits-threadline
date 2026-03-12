@@ -8,6 +8,7 @@ pub struct GraphData {
     pub commits: Vec<CommitNode>,
     pub main_branch: String,
     pub authors: Vec<AuthorInfo>,
+    pub mailmap: Mailmap,
     pub github_url: Option<String>,
 }
 
@@ -19,6 +20,7 @@ pub struct GraphMeta {
     pub branches: Vec<BranchInfo>,
     pub main_branch: String,
     pub authors: Vec<AuthorInfo>,
+    pub mailmap: Mailmap,
     pub github_url: Option<String>,
     pub chunks: Vec<ChunkInfo>,
 }
@@ -50,6 +52,12 @@ pub struct AuthorInfo {
     pub name: String,
     pub email: String,
     pub commit_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Mailmap {
+    pub aliases: std::collections::HashMap<String, String>,
+    pub names: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
